@@ -1,8 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Photon.Pun;
 
-public class FoodSpawner : MonoBehaviour
+public class FoodSpawner : MonoBehaviourPunCallbacks
 {
     public GameObject[] foodItems;
     public static FoodSpawner instance;
@@ -15,16 +16,11 @@ public class FoodSpawner : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        SpawnFood();
+        if (PhotonNetwork.IsMasterClient)
+            SpawnFood();
     }
     public void SpawnFood()
     {
-        Instantiate(foodItems[Random.Range(0, foodItems.Length)], new Vector3(Random.Range(-4f, 4f), 0f, Random.Range(-4f, 4f)), Quaternion.identity);
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
+        PhotonNetwork.Instantiate(foodItems[Random.Range(0, foodItems.Length)].name, new Vector3(Random.Range(-4f, 4f), 0f, Random.Range(-4f, 4f)), Quaternion.identity);
     }
 }

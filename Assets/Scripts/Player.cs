@@ -6,9 +6,13 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Photon.Pun;
 
-public class Player : MonoBehaviour
+
+public class Player : MonoBehaviourPunCallbacks
 {
+    public static GameObject localPlayerInstance;
+
     //SWIPE MOVEMENT
     private Vector3 fp;   //First touch position
     private Vector3 lp;   //Last touch position
@@ -16,19 +20,32 @@ public class Player : MonoBehaviour
 
     Rigidbody rb;
 #if UNITY_EDITOR
-    float moveSpeed = 5f;
+    float moveSpeed = 3f;
 #elif UNITY_ANDROID
-float moveSpeed = 100f;
+    float moveSpeed = 50f;
 #endif
 
 
     //SNAKE PART
     [SerializeField] GameObject bodyPart;
-    [SerializeField] int gap = 10;
+    [SerializeField] Vector3 gap = new Vector3(10, 0, 0);
     List<GameObject> bodyParts = new List<GameObject>();
     List<Transform> positions = new List<Transform>();
 
+    int lastDirection = -1;
 
+
+
+    private void Awake()
+    {
+
+        Debug.unityLogger.logEnabled = true;
+        if (photonView.IsMine)
+        {
+            localPlayerInstance = gameObject;
+        }
+        DontDestroyOnLoad(gameObject);
+    }
 
     void Start()
     {
@@ -74,12 +91,18 @@ float moveSpeed = 100f;
                         if ((lp.x > fp.x))  //If the movement was to the right)
                         {   //Right swipe
                             Debug.Log("Right Swipe");
-                            rb.velocity = Vector3.right * Time.deltaTime * moveSpeed;
+                            if (lastDirection != 1)
+                            {
+                                lastDirection = 0;
+                            }
                         }
                         else
                         {   //Left swipe
                             Debug.Log("Left Swipe");
-                            rb.velocity = Vector3.left * Time.deltaTime * moveSpeed;
+                            if (lastDirection != 0)
+                            {
+                                lastDirection = 1;                                
+                            }
                         }
                     }
                     else
@@ -87,12 +110,18 @@ float moveSpeed = 100f;
                         if (lp.y > fp.y)  //If the movement was up
                         {
                             Debug.Log("Up Swipe");
-                            rb.velocity = Vector3.forward * Time.deltaTime * moveSpeed;
+                            if (lastDirection != 3)
+                            {
+                                lastDirection = 2;
+                            }
                         }
                         else
                         {
                             Debug.Log("Down Swipe");
-                            rb.velocity = Vector3.back * Time.deltaTime * moveSpeed;
+                            if (lastDirection != 2)
+                            {
+                                lastDirection = 3;
+                            }
                         }
                     }
                 }
@@ -103,38 +132,56 @@ float moveSpeed = 100f;
             }
         }
 
+    }
+
+    private void FixedUpdate()
+    {        
         //MOVEMENT AND SPAWNING
 
         positions[positions.Count - 1].position = transform.position;
-        Debug.Log("Moving");
+        //Debug.Log("Moving");
         positions.Insert(0, positions[positions.Count - 1]);
         positions.RemoveAt(positions.Count - 1);
 
+
+        if (lastDirection == 0)
+            rb.velocity = Vector3.right * Time.fixedDeltaTime * moveSpeed;
+        else if (lastDirection == 1)
+            rb.velocity = Vector3.left * Time.fixedDeltaTime * moveSpeed;
+        else if (lastDirection == 2)
+            rb.velocity = Vector3.forward * Time.fixedDeltaTime * moveSpeed;
+        else if (lastDirection == 3)
+            rb.velocity = Vector3.back * Time.fixedDeltaTime * moveSpeed;
     }
 
+    //GENERATING BODY WHEN FOOD GOT CONSUMED
 
     void GenerateTail()
     {
-        GameObject body = Instantiate(bodyPart, transform.position, Quaternion.identity);
+        GameObject body = PhotonNetwork.Instantiate(bodyPart.name, transform.position, Quaternion.identity);
         bodyParts.Add(body);
         Debug.Log("Generating");
         positions.Insert(0, body.transform);
 
-        FoodSpawner.instance.SpawnFood();
+        if (PhotonNetwork.IsMasterClient)
+            FoodSpawner.instance.SpawnFood();
     }
 
+
+    //CHECKING SNAKE COLLISIONS
 
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag(Constants.food))
         {
             Debug.Log("Food consume");
-            Destroy(other.gameObject);
+            PhotonNetwork.Destroy(other.gameObject);
             GenerateTail();
         }
         if (other.CompareTag(Constants.wall))
         {
-            Debug.Log("Touched");
+            Debug.Log("Touched wall");
+
             GameManager.instance.GameOver();
         }
 
